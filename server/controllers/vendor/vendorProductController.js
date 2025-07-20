@@ -1,21 +1,32 @@
 const Product = require('../../models/Product');
+const ProductImage = require('../../models/ProductImage');
 const { sendResponse } = require('../../helpers/responseHelper');
+const fs = require('fs');
+const path = require('path');
 
-// Create product
+// Create product with multiple images
 exports.createProduct = async (req, res) => {
   try {
-    const { name, description, price, mrp, salePrice, costPrice } = req.body;
+    const { name, description, price, mrp, salePrice, costPrice, stock, discount, shippingCharges } = req.body;
     if (Number(salePrice) > Number(mrp)) {
       return sendResponse(res, false, 'Sale price cannot be greater than MRP', null, 400);
     }
-    const image = req.file ? req.file.filename : undefined;
     const vendor = req.user.userId;
-    const product = new Product({ name, description, price, mrp, salePrice, costPrice, image, vendor });
+    const product = new Product({ name, description, price, mrp, salePrice, costPrice, stock, discount, shippingCharges, vendor });
     await product.save();
-    if (product.image) {
-      product.image = `${req.protocol}://${req.get('host')}/uploads/product/${product.image}`;
+
+    // Handle multiple images
+    let images = [];
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        const img = new ProductImage({ product: product._id, image: file.filename });
+        await img.save();
+        images.push(`${req.protocol}://${req.get('host')}/uploads/product/${file.filename}`);
+      }
     }
-    return sendResponse(res, true, 'Product created successfully', product);
+    const productObj = product.toObject();
+    productObj.images = images;
+    return sendResponse(res, true, 'Product created successfully', productObj);
   } catch (err) {
     return sendResponse(res, false, err.message, null, 500);
   }
@@ -35,14 +46,24 @@ exports.getVendorProducts = async (req, res) => {
       .skip(skip)
       .limit(limit);
 
-    products.forEach(p => {
-      if (p.image) {
-        p.image = `${req.protocol}://${req.get('host')}/uploads/product/${p.image}`;
-      }
+    // Fetch images for all products in one query
+    const productIds = products.map(p => p._id);
+    const images = await ProductImage.find({ product: { $in: productIds } });
+
+    // Attach images to each product
+    const productsWithImages = products.map(product => {
+      const productObj = product.toObject();
+      productObj.images = images
+        .filter(img => img.product.toString() === product._id.toString())
+        .map(img => ({
+          _id: img._id,
+          url: `${req.protocol}://${req.get('host')}/uploads/product/${img.image}`
+        }));
+      return productObj;
     });
 
     return sendResponse(res, true, 'Vendor products fetched', {
-      products,
+      products: productsWithImages,
       total,
       page,
       limit,
@@ -72,11 +93,11 @@ exports.getProductById = async (req, res) => {
 exports.updateProduct = async (req, res) => {
   try {
     const vendor = req.user.userId;
-    const { name, description, price, mrp, salePrice, costPrice } = req.body;
+    const { name, description, price, mrp, salePrice, costPrice, stock, discount, shippingCharges } = req.body;
     if (salePrice && mrp && Number(salePrice) > Number(mrp)) {
       return sendResponse(res, false, 'Sale price cannot be greater than MRP', null, 400);
     }
-    let updateData = { name, description, price, mrp, salePrice, costPrice };
+    let updateData = { name, description, price, mrp, salePrice, costPrice, stock, discount, shippingCharges };
     if (req.file) updateData.image = req.file.filename;
     const product = await Product.findOneAndUpdate(
       { _id: req.params.id, vendor, deletedAt: null },
@@ -104,6 +125,38 @@ exports.deleteProduct = async (req, res) => {
     );
     if (!product) return sendResponse(res, false, 'Product not found', null, 404);
     return sendResponse(res, true, 'Product soft deleted');
+  } catch (err) {
+    return sendResponse(res, false, err.message, null, 500);
+  }
+};
+
+// Get all images for a product
+exports.getProductImages = async (req, res) => {
+  try {
+    const productId = req.params.productId;
+    const images = await ProductImage.find({ product: productId });
+    const imageUrls = images.map(img => ({
+      _id: img._id,
+      url: `${req.protocol}://${req.get('host')}/uploads/product/${img.image}`
+    }));
+    return sendResponse(res, true, 'Product images fetched', imageUrls);
+  } catch (err) {
+    return sendResponse(res, false, err.message, null, 500);
+  }
+};
+
+// Delete a specific image
+exports.deleteProductImage = async (req, res) => {
+  try {
+    const { productId, imageId } = req.params;
+    const image = await ProductImage.findOneAndDelete({ _id: imageId, product: productId });
+    if (!image) return sendResponse(res, false, 'Image not found', null, 404);
+    // Remove file from disk
+    const filePath = path.join(__dirname, '../../uploads/product/', image.image);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+    return sendResponse(res, true, 'Image deleted');
   } catch (err) {
     return sendResponse(res, false, err.message, null, 500);
   }
