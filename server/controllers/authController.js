@@ -4,6 +4,7 @@ const User = require('../models/User');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const { sendEmail } = require('../helpers/emailHelper');
+const { sendResponse } = require('../helpers/responseHelper');
 
 // Email transporter setup
 const transporter = nodemailer.createTransport({
@@ -18,15 +19,15 @@ exports.register = async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
     const existingUser = await User.findOne({ email });
-    if (existingUser) return res.status(400).json({ message: 'User already exists' });
+    if (existingUser) return sendResponse(res, false, 'User already exists', null, 400);
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = new User({ name, email, password: hashedPassword, role });
     await user.save();
 
-    res.status(201).json({ message: 'User registered successfully' });
+    return sendResponse(res, true, 'User registered successfully');
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    return sendResponse(res, false, err.message, null, 500);
   }
 };
 
@@ -34,15 +35,15 @@ exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
     const user = await User.findOne({ email });
-    if (!user) return res.status(400).json({ message: 'Invalid credentials' });
+    if (!user) return sendResponse(res, false, 'Invalid credentials', null, 400);
 
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
+    if (!isMatch) return sendResponse(res, false, 'Invalid credentials', null, 400);
 
     const token = jwt.sign({ userId: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
-    res.json({ token });
+    return sendResponse(res, true, 'Login successful', { token });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    return sendResponse(res, false, err.message, null, 500);
   }
 };
 
@@ -50,7 +51,7 @@ exports.forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
     const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (!user) return sendResponse(res, false, 'User not found', null, 404);
 
     // Generate token
     const token = crypto.randomBytes(32).toString('hex');
@@ -68,9 +69,9 @@ exports.forgotPassword = async (req, res) => {
       `<p>You requested a password reset. <a href="${resetLink}">Click here</a> to reset your password.<br>This link will expire in 1 hour.</p>`
     );
 
-    res.json({ message: 'Password reset link has been sent to your email.' });
+    return sendResponse(res, true, 'Password reset link has been sent to your email.');
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    return sendResponse(res, false, err.message, null, 500);
   }
 };
 
@@ -82,15 +83,15 @@ exports.resetPassword = async (req, res) => {
       resetPasswordToken: token,
       resetPasswordExpires: { $gt: Date.now() }
     });
-    if (!user) return res.status(400).json({ message: 'Invalid or expired token' });
+    if (!user) return sendResponse(res, false, 'Invalid or expired token', null, 400);
 
     user.password = await bcrypt.hash(password, 10);
     user.resetPasswordToken = undefined;
     user.resetPasswordExpires = undefined;
     await user.save();
 
-    res.json({ message: 'Password has been reset successfully' });
+    return sendResponse(res, true, 'Password has been reset successfully');
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    return sendResponse(res, false, err.message, null, 500);
   }
 }; 
