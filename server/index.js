@@ -15,6 +15,35 @@ app.get('/', (req, res) => {
   res.send('API is running...');
 });
 
+const authRoutes = require('./routes/auth');
+const swaggerUi = require('swagger-ui-express');
+const swaggerJsdoc = require('swagger-jsdoc');
+
+const swaggerOptions = {
+  definition: {
+    openapi: '3.0.0',
+    info: {
+      title: 'E-commerce API',
+      version: '1.0.0',
+      description: 'API documentation for the e-commerce project',
+    },
+  },
+  apis: ['./routes/*.js'],
+};
+
+const swaggerSpec = swaggerJsdoc(swaggerOptions);
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+app.use('/api/auth', authRoutes);
+
+const adminRoutes = require('./routes/admin/adminRoutes');
+const buyerRoutes = require('./routes/buyer/buyerRoutes');
+const vendorRoutes = require('./routes/vendor/vendorRoutes');
+
+app.use('/api/admin', adminRoutes);
+app.use('/api/buyer', buyerRoutes);
+app.use('/api/vendor', vendorRoutes);
+
 // MongoDB connection
 mongoose.connect(process.env.MONGO_URI)
 .then(() => console.log('MongoDB connected'))
