@@ -7,13 +7,16 @@ const path = require('path');
 // Create product with multiple images
 exports.createProduct = async (req, res) => {
   try {
-    const { name, description, price, mrp, salePrice, costPrice, stock, discount, shippingCharges } = req.body;
+    const { name, description, price, mrp, salePrice, costPrice, stock, discount, shippingCharges, category, subcategory } = req.body;
     if (Number(salePrice) > Number(mrp)) {
       return sendResponse(res, false, 'Sale price cannot be greater than MRP', null, 400);
     }
     const vendor = req.user.userId;
-    const product = new Product({ name, description, price, mrp, salePrice, costPrice, stock, discount, shippingCharges, vendor });
+    const product = new Product({ name, description, price, mrp, salePrice, costPrice, stock, discount, shippingCharges, category, subcategory, vendor });
     await product.save();
+    // populate category and subcategory names
+    await product.populate('category', 'name');
+    await product.populate('subcategory', 'name');
 
     // Handle multiple images
     let images = [];
@@ -25,6 +28,8 @@ exports.createProduct = async (req, res) => {
       }
     }
     const productObj = product.toObject();
+    productObj.categoryName = product.category ? product.category.name : null;
+    productObj.subcategoryName = product.subcategory ? product.subcategory.name : null;
     productObj.images = images;
     return sendResponse(res, true, 'Product created successfully', productObj);
   } catch (err) {
@@ -43,6 +48,8 @@ exports.getVendorProducts = async (req, res) => {
     const query = { vendor, deletedAt: null };
     const total = await Product.countDocuments(query);
     const products = await Product.find(query)
+      .populate('category', 'name')
+      .populate('subcategory', 'name')
       .skip(skip)
       .limit(limit);
 
@@ -52,6 +59,9 @@ exports.getVendorProducts = async (req, res) => {
 
     // Attach images to each product
     const productsWithImages = products.map(product => {
+      // convert mongoose doc to plain object
+      // convert mongoose doc to plain object
+
       const productObj = product.toObject();
       productObj.images = images
         .filter(img => img.product.toString() === product._id.toString())
@@ -78,7 +88,9 @@ exports.getVendorProducts = async (req, res) => {
 exports.getProductById = async (req, res) => {
   try {
     const vendor = req.user.userId;
-    const product = await Product.findOne({ _id: req.params.id, vendor, deletedAt: null });
+    const product = await Product.findOne({ _id: req.params.id, vendor, deletedAt: null })
+      .populate('category', 'name')
+      .populate('subcategory', 'name');
     if (!product) return sendResponse(res, false, 'Product not found', null, 404);
     if (product.image) {
       product.image = `${req.protocol}://${req.get('host')}/uploads/product/${product.image}`;
@@ -93,11 +105,11 @@ exports.getProductById = async (req, res) => {
 exports.updateProduct = async (req, res) => {
   try {
     const vendor = req.user.userId;
-    const { name, description, price, mrp, salePrice, costPrice, stock, discount, shippingCharges } = req.body;
+    const { name, description, price, mrp, salePrice, costPrice, stock, discount, shippingCharges, category, subcategory } = req.body;
     if (salePrice && mrp && Number(salePrice) > Number(mrp)) {
       return sendResponse(res, false, 'Sale price cannot be greater than MRP', null, 400);
     }
-    let updateData = { name, description, price, mrp, salePrice, costPrice, stock, discount, shippingCharges };
+    let updateData = { name, description, price, mrp, salePrice, costPrice, stock, discount, shippingCharges, category, subcategory };
     if (req.file) updateData.image = req.file.filename;
     const product = await Product.findOneAndUpdate(
       { _id: req.params.id, vendor, deletedAt: null },
@@ -108,7 +120,12 @@ exports.updateProduct = async (req, res) => {
     if (product.image) {
       product.image = `${req.protocol}://${req.get('host')}/uploads/product/${product.image}`;
     }
-    return sendResponse(res, true, 'Product updated', product);
+    await product.populate('category', 'name');
+    await product.populate('subcategory', 'name');
+    const prodObj = product.toObject();
+    prodObj.categoryName = product.category ? product.category.name : null;
+    prodObj.subcategoryName = product.subcategory ? product.subcategory.name : null;
+    return sendResponse(res, true, 'Product updated', prodObj);
   } catch (err) {
     return sendResponse(res, false, err.message, null, 500);
   }

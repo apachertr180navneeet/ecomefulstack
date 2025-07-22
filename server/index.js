@@ -23,12 +23,14 @@ app.use('/api/auth', authRoutes);
 const adminRoutes = require('./routes/admin/adminRoutes');
 const buyerRoutes = require('./routes/buyer/buyerRoutes');
 const vendorRoutes = require('./routes/vendor/vendorRoutes');
+const commonRoutes = require('./routes/commonRoutes');
 const userRoutes = require('./routes/user');
 
 app.use('/api/admin', adminRoutes);
 app.use('/api/buyer', buyerRoutes);
 app.use('/api/vendor', vendorRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api/common', commonRoutes);
 
 // MongoDB connection
 mongoose.connect(process.env.MONGO_URI)

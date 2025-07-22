@@ -9,7 +9,7 @@ const { productValidationRules, validateProduct } = require('../../validators/pr
 router.post('/products', authenticateJWT, authorizeRoles('vendor'), upload.array('images', 5), productValidationRules, validateProduct, vendorProductController.createProduct);
 router.get('/products', authenticateJWT, authorizeRoles('vendor'), vendorProductController.getVendorProducts);
 router.get('/products/:id', authenticateJWT, authorizeRoles('vendor'), vendorProductController.getProductById);
-router.put('/products/:id', authenticateJWT, authorizeRoles('vendor'), upload.single('image'), productValidationRules, validateProduct, vendorProductController.updateProduct);
+router.put('/products/:id', authenticateJWT, authorizeRoles('vendor'), upload.array('images', 5), productValidationRules, validateProduct, vendorProductController.updateProduct);
 router.delete('/products/:id', authenticateJWT, authorizeRoles('vendor'), vendorProductController.deleteProduct);
 
 // Product images

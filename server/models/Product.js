@@ -11,6 +11,8 @@ const productSchema = new mongoose.Schema({
   discount: { type: Number, required: true, min: 0, max: 100 },
   shippingCharges: { type: Number, required: true, min: 0 },
   image: String,
+  category: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', required: true },
+  subcategory: { type: mongoose.Schema.Types.ObjectId, ref: 'Subcategory', required: true },
   vendor: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   createdAt: { type: Date, default: Date.now },
   deletedAt: { type: Date, default: null }
