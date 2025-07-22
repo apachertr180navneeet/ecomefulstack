@@ -10,6 +10,7 @@ const productSchema = new mongoose.Schema({
   stock: { type: Number, required: true, min: 0 },
   discount: { type: Number, required: true, min: 0, max: 100 },
   shippingCharges: { type: Number, required: true, min: 0 },
+  averageRating: { type: Number, default: 0, min: 0, max: 5 },
   image: String,
   category: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', required: true },
   subcategory: { type: mongoose.Schema.Types.ObjectId, ref: 'Subcategory', required: true },
